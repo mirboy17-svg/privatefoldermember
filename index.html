@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>회원사 전용 산업보건 데이터 센터</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel 7 -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- [수정됨] Vanilla Lucide Icons (브라우저 환경에서 가장 안정적임) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.4s ease-in-out; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #print-section, #print-section * { visibility: visible; }
+            #print-section { position: absolute; left: 0; top: 0; width: 100%; text-align: center; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased overflow-hidden selection:bg-blue-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+        
+        // ==========================================
+        // [오류 해결] 브라우저 환경을 위한 커스텀 아이콘 생성기
+        // ==========================================
+        const IconWrapper = ({ name, size = 24, className = "" }) => {
+            const svgRef = useRef(null);
+            useEffect(() => {
+                if (svgRef.current && window.lucide) {
+                    const iconName = window.lucide.icons[name] ? name : 'check-circle'; // fallback
+                    const temp = document.createElement('i');
+                    temp.setAttribute('data-lucide', iconName);
+                    
+                    svgRef.current.innerHTML = '';
+                    svgRef.current.appendChild(temp);
+                    window.lucide.createIcons({ root: svgRef.current });
+                    
+                    const svg = svgRef.current.querySelector('svg');
+                    if (svg) {
+                        svg.setAttribute('width', size);
+                        svg.setAttribute('height', size);
+                        if (className) svg.setAttribute('class', className);
+                    }
+                }
+            }, [name, size, className]);
+            
+            return <span ref={svgRef} className={`inline-flex shrink-0 ${className}`} style={{ width: size, height: size }} />;
+        };
+
+        const createIcon = (compName) => {
+            const kebabName = compName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+            return (props) => <IconWrapper name={kebabName} {...props} />;
+        };
+
+        // 대시보드에 사용된 모든 아이콘 목록 매핑
+        const iconNames = [
+            'Folder', 'FileText', 'Upload', 'ShieldCheck', 'Users', 'Settings', 'Search', 
+            'Bell', 'ChevronRight', 'LogOut', 'AlertTriangle', 'FileBarChart', 'Home', 
+            'ArrowLeft', 'Star', 'BookOpen', 'Activity', 'Briefcase', 'Lock', 'Key', 'CheckCircle', 'X',
+            'Share2', 'Send', 'UploadCloud', 'CheckSquare', 'FilePlus', 'Database', 'UserPlus', 
+            'HardDrive', 'Server', 'Download', 'Trash2', 'Edit2', 'FileDown', 'QrCode', 'Plus'
+        ];
+
+        const icons = {};
+        iconNames.forEach(name => {
+            icons[name] = createIcon(name);
+        });
+
+        // 비구조화 할당으로 컴포넌트처럼 사용
+        const { 
+            Folder, FileText, Upload, ShieldCheck, Users, Settings, Search, 
+            Bell, ChevronRight, LogOut, AlertTriangle, FileBarChart, Home, 
+            ArrowLeft, Star, BookOpen, Activity, Briefcase, Lock, Key, CheckCircle, X,
+            Share2, Send, UploadCloud, CheckSquare, FilePlus, Database, UserPlus, 
+            HardDrive, Server, Download, Trash2, Edit2, FileDown, QrCode, Plus
+        } = icons;
+
+        // ==========================================
+        // [Firebase DB 시뮬레이션] 초기 데이터 세팅
+        // ==========================================
+        const generateEnterpriseDatabase = (count = 1) => {
+            const db = {};
+            for (let i = 1; i <= count; i++) {
+                const bizNum = i === 1 ? "0000000000" : `12345${String(i).padStart(5, '0')}`;
+                const companyId = bizNum;
+
+                db[companyId] = {
+                    id: companyId,
+                    name: i === 1 ? "(주)테스트 기업" : `대한안전회원사 ${i}호`,
+                    themeColor: "bg-blue-600",
+                    authInfo: { businessNumber: bizNum, email: "" },
+                    stats: { totalFiles: Math.floor(Math.random() * 50) + 5, pendingApprovals: 0, lastUpdated: `2026-05-16`, loginCount: Math.floor(Math.random() * 100) },
+                    folders: [
+                        { id: "f_work_env", name: "작업환경측정 보고서", icon: Activity, color: "text-blue-500" },
+                        { id: "f_muscle", name: "근골격계 부담작업 보고서", icon: Users, color: "text-indigo-500" },
+                    ],
+                    exclusiveMenus: [],
+                    files: {
+                        "f_work_env": [{ id: `wenv_1`, name: `2026년 상반기 작업환경측정 결과.pdf`, date: "2026-05-10", size: "3.2 MB", author: "시스템 관리자", url: "#" }]
+                    },
+                    distributionHistory: [],
+                    msdsProcesses: [
+                        { id: "proc_base_1", name: "세척공정" }
+                    ],
+                    msdsFiles: {
+                        "proc_base_1": []
+                    }
+                };
+            }
+            return db;
+        };
+
+        // ==========================================
+        // 1. 로그인 화면 컴포넌트
+        // ==========================================
+        const LoginScreen = ({ db, setCurrentUser, setAppState, showToast }) => {
+            const [loginType, setLoginType] = useState('COMPANY'); 
+            const [bizNum, setBizNum] = useState("");
+            const [email, setEmail] = useState("");
+            const [adminId, setAdminId] = useState("");
+            const [adminPw, setAdminPw] = useState("");
+            const [error, setError] = useState("");
+
+            const handleCompanyLogin = (e) => {
+                e.preventDefault();
+                setError("");
+                
+                const cleanBizNum = bizNum.replace(/[^0-9]/g, '');
+                const company = db[cleanBizNum]; 
+                
+                if (company) {
+                    if (!email.trim() || !email.includes('@')) {
+                        setError("유효한 담당자 이메일을 입력해주세요.");
+                        return;
+                    }
+                    if (company.authInfo.email && company.authInfo.email !== email) {
+                        setError("등록된 담당자 이메일 정보와 일치하지 않습니다.");
+                        return;
+                    } else if (!company.authInfo.email) {
+                        company.authInfo.email = email; 
+                    }
+
+                    company.stats.loginCount = (company.stats.loginCount || 0) + 1;
+                    setCurrentUser(company);
+                    setAppState('COMPANY');
+                    showToast(`[${company.name}] 자료실에 접속했습니다.`);
+                } else {
+                    setError("등록되지 않은 사업자등록번호입니다.");
+                }
+            };
+
+            const handleAdminLogin = (e) => {
+                e.preventDefault();
+                setError("");
+                if (adminId === 'aniag0000' && adminPw === 'wjdwodyd21') {
+                    setCurrentUser({ role: 'ADMIN', name: '최고 관리자' });
+                    setAppState('ADMIN');
+                    showToast("시스템 관리자로 진입했습니다.");
+                } else {
+                    setError("관리자 계정 정보가 일치하지 않습니다.");
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+                    <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-gray-200">
+                        <div className="bg-gradient-to-br from-slate-900 to-gray-800 p-12 text-white flex flex-col justify-between relative overflow-hidden">
+                            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                            <div className="relative z-10">
+                                <ShieldCheck size={48} className="mb-6 text-blue-400" />
+                                <h1 className="text-4xl font-extrabold tracking-tight mb-4">산업보건망<br/>Enterprise</h1>
+                                <p className="text-gray-300 text-lg leading-relaxed">
+                                    회원사의 소중한 보건 데이터를<br/>
+                                    안전하게 보호하고 관리하는<br/>
+                                    프라이빗 클라우드 시스템입니다.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-12 flex flex-col justify-center bg-gray-50/50">
+                            <div className="flex bg-gray-200/70 rounded-xl p-1 mb-10">
+                                <button 
+                                    onClick={() => { setLoginType('COMPANY'); setError(''); }}
+                                    className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${loginType === 'COMPANY' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    회원사 접속
+                                </button>
+                                <button 
+                                    onClick={() => { setLoginType('ADMIN'); setError(''); }}
+                                    className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${loginType === 'ADMIN' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    시스템 관리자
+                                </button>
+                            </div>
+
+                            <h2 className="text-2xl font-extrabold text-gray-900 mb-2">
+                                {loginType === 'COMPANY' ? '보건 데이터 센터 접속' : '관리자 콘솔'}
+                            </h2>
+                            <p className="text-gray-500 text-sm mb-8">
+                                {loginType === 'COMPANY' 
+                                    ? '부여받은 사업자등록번호(숫자)와 이메일을 입력해주세요.' 
+                                    : '플랫폼 전체 데이터를 통제하는 관리 시스템입니다.'}
+                            </p>
+
+                            <form onSubmit={loginType === 'COMPANY' ? handleCompanyLogin : handleAdminLogin} className="space-y-5">
+                                {loginType === 'COMPANY' ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">사업자등록번호 (숫자만 입력)</label>
+                                            <input 
+                                                type="text" 
+                                                value={bizNum}
+                                                onChange={(e) => setBizNum(e.target.value.replace(/[^0-9]/g, ''))}
+                                                placeholder="예: 0123456789" 
+                                                className="w-full px-5 py-4 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-all font-mono text-lg"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">이메일 주소</label>
+                                            <input 
+                                                type="email" 
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="예: manager@company.com" 
+                                                className="w-full px-5 py-4 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-all text-lg"
+                                                required
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">관리자 ID</label>
+                                            <input 
+                                                type="text" value={adminId} onChange={(e) => setAdminId(e.target.value)} required
+                                                className="w-full px-5 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">비밀번호</label>
+                                            <input 
+                                                type="password" value={adminPw} onChange={(e) => setAdminPw(e.target.value)} required
+                                                className="w-full px-5 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 transition-all"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+
+                                {error && (
+                                    <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-start gap-2 shake">
+                                        <X size={18} className="mt-0.5 shrink-0" />
+                                        <p>{error}</p>
+                                    </div>
+                                )}
+
+                                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-lg py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg mt-4">
+                                    {loginType === 'COMPANY' ? <><Lock size={20}/> 자료실 접속</> : <><Server size={20}/> 시스템 관리 진입</>}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 2. 관리자(ADMIN) 메뉴 하위 뷰
+        // ==========================================
+        const AdminDashboardView = ({ companyList }) => (
+            <div className="animate-in slide-in-from-bottom-4">
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-8">산업보건 플랫폼 통합 현황</h2>
+                <div className="grid grid-cols-3 gap-6 mb-10">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 font-bold mb-1">등록된 총 회원사</p>
+                            <p className="text-4xl font-black text-gray-900">{companyList.length}</p>
+                        </div>
+                        <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><Users size={28}/></div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const AdminRegisterView = ({ db, handleUpdateDb, showToast }) => {
+            const [regType, setRegType] = useState('SINGLE');
+            const [newCompName, setNewCompName] = useState("");
+            const [newCompBiz, setNewCompBiz] = useState("");
+            const [excelData, setExcelData] = useState("");
+
+            const processNewCompany = (biz, name, currentDb) => {
+                const cleanBiz = biz.replace(/[^0-9]/g, '');
+                if(currentDb[cleanBiz]) return null;
+                return {
+                    id: cleanBiz,
+                    name: name.trim(),
+                    themeColor: "bg-blue-600",
+                    authInfo: { businessNumber: cleanBiz, email: "" },
+                    stats: { totalFiles: 0, pendingApprovals: 0, lastUpdated: new Date().toISOString().split('T')[0], loginCount: 0 },
+                    folders: [
+                        { id: "f_work_env", name: "작업환경측정 보고서", icon: Activity, color: "text-blue-500" },
+                        { id: "f_muscle", name: "근골격계 부담작업 보고서", icon: Users, color: "text-indigo-500" },
+                    ],
+                    exclusiveMenus: [],
+                    files: {},
+                    distributionHistory: [],
+                    msdsProcesses: [{ id: "proc_base_1", name: "세척공정" }],
+                    msdsFiles: { "proc_base_1": [] }
+                };
+            };
+
+            const handleSingleReg = (e) => {
+                e.preventDefault();
+                const cleanBiz = newCompBiz.replace(/[^0-9]/g, '');
+                if (!cleanBiz || !newCompName) return;
+
+                if (db[cleanBiz]) {
+                    showToast("이미 존재하는 사업자번호입니다.");
+                    return;
+                }
+
+                const newCompany = processNewCompany(cleanBiz, newCompName, db);
+                handleUpdateDb({ ...db, [cleanBiz]: newCompany });
+                setNewCompName("");
+                setNewCompBiz("");
+                showToast(`[${newCompName}] 회원사 계정 및 기본 폴더 생성 완료!`);
+            };
+
+            const handleExcelReg = (e) => {
+                e.preventDefault();
+                if(!excelData.trim()) return;
+
+                const lines = excelData.split('\n');
+                let successCount = 0;
+                let failCount = 0;
+                const newDb = { ...db };
+
+                lines.forEach(line => {
+                    const parts = line.split(/\t|,| /).filter(Boolean);
+                    if(parts.length >= 2) {
+                        const biz = parts[0];
+                        const name = parts.slice(1).join(' ');
+                        const newComp = processNewCompany(biz, name, newDb);
+                        if(newComp) {
+                            newDb[newComp.id] = newComp;
+                            successCount++;
+                        } else failCount++;
+                    }
+                });
+
+                if (successCount > 0) {
+                    handleUpdateDb(newDb);
+                    setExcelData("");
+                    showToast(`엑셀 일괄 연동 완료! (성공: ${successCount}건, 중복제외: ${failCount}건)`);
+                } else {
+                    showToast("연동 가능한 데이터가 없습니다. 형식을 확인해주세요.");
+                }
+            };
+
+            return (
+                <div className="animate-in slide-in-from-bottom-4 max-w-4xl">
+                    <h2 className="text-3xl font-extrabold text-gray-900 mb-2">신규 회원사 권한 및 공간 생성</h2>
+                    <p className="text-gray-500 mb-8">Firebase 기반의 안전한 프라이빗 스토리지(기본 2종 폴더)를 자동으로 할당합니다.</p>
+                    
+                    <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="flex border-b border-gray-200 bg-gray-50">
+                            <button onClick={()=>setRegType('SINGLE')} className={`flex-1 py-4 font-bold ${regType==='SINGLE'?'bg-white text-blue-600 border-b-2 border-blue-600':'text-gray-500'}`}>단일 회원사 등록</button>
+                            <button onClick={()=>setRegType('EXCEL')} className={`flex-1 py-4 font-bold flex justify-center items-center gap-2 ${regType==='EXCEL'?'bg-white text-green-600 border-b-2 border-green-600':'text-gray-500'}`}><FileDown size={18}/> 엑셀 일괄 연동</button>
+                        </div>
+                        <div className="p-8">
+                            {regType === 'SINGLE' ? (
+                                <form onSubmit={handleSingleReg} className="space-y-6 max-w-2xl">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">회원사 공식 명칭</label>
+                                        <input type="text" value={newCompName} onChange={e => setNewCompName(e.target.value)} required className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none" placeholder="(주)한국산업"/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">사업자등록번호 (로그인 ID로 사용)</label>
+                                        <input type="text" value={newCompBiz} onChange={e => setNewCompBiz(e.target.value.replace(/[^0-9]/g, ''))} required className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none font-mono" placeholder="숫자만 입력 (예: 1112233333)" maxLength={10}/>
+                                    </div>
+                                    <button type="submit" className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl flex justify-center gap-2">
+                                        <UserPlus size={20} /> 전용 스페이스 및 기본 폴더 2종 생성
+                                    </button>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleExcelReg} className="space-y-6">
+                                    <div className="bg-green-50 p-4 rounded-xl text-green-800 text-sm mb-4 border border-green-100">
+                                        <p className="font-bold mb-1">💡 엑셀 복사/붙여넣기 가이드</p>
+                                        <p>엑셀 파일에서 <b>[사업자번호]</b>와 <b>[회사명]</b> 두 열을 드래그하여 복사한 뒤, 아래 칸에 그대로 붙여넣으세요.</p>
+                                    </div>
+                                    <textarea 
+                                        value={excelData} onChange={e => setExcelData(e.target.value)} required
+                                        className="w-full h-64 p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none font-mono text-sm whitespace-pre"
+                                        placeholder={`1112233333 (주)가나다산업\n2223344444 (주)마바사건설\n...`}
+                                    ></textarea>
+                                    <button type="submit" className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl flex justify-center gap-2">
+                                        <Database size={20} /> 일괄 파싱 및 데이터베이스 생성 시작
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminUploadView = ({ db, handleUpdateDb, showToast }) => {
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedCompId, setSelectedCompId] = useState(null);
+            const [newFolderName, setNewFolderName] = useState("");
+            const [editingFolderId, setEditingFolderId] = useState(null);
+            const [editFolderName, setEditFolderName] = useState("");
+            const [uploadTargetFolder, setUploadTargetFolder] = useState("");
+            const [uploadFile, setUploadFile] = useState(null);
+
+            const companyList = Object.values(db);
+            const filteredComps = useMemo(() => {
+                if(!searchTerm.trim()) return [];
+                return companyList.filter(c => c.name.includes(searchTerm) || c.authInfo.businessNumber.includes(searchTerm)).slice(0, 50);
+            }, [searchTerm, companyList]);
+
+            const selectedComp = selectedCompId ? db[selectedCompId] : null;
+
+            const handleAddFolder = () => {
+                if(!newFolderName.trim() || !selectedComp) return;
+                const newId = `f_${Date.now()}`;
+                const updatedDb = { ...db };
+                updatedDb[selectedComp.id].folders.push({ id: newId, name: newFolderName, icon: Folder, color: "text-slate-600" });
+                if(!updatedDb[selectedComp.id].files[newId]) updatedDb[selectedComp.id].files[newId] = [];
+                
+                handleUpdateDb(updatedDb);
+                setNewFolderName("");
+                showToast("새 문서 폴더가 추가되었습니다.");
+            };
+
+            const handleDeleteFolder = (folderId) => {
+                if(!selectedComp) return;
+                const updatedDb = { ...db };
+                updatedDb[selectedComp.id].folders = updatedDb[selectedComp.id].folders.filter(f => f.id !== folderId);
+                delete updatedDb[selectedComp.id].files[folderId];
+                handleUpdateDb(updatedDb);
+                showToast("폴더가 삭제되었습니다.");
+            };
+
+            const handleSaveEditFolder = (folderId) => {
+                if(!selectedComp || !editFolderName.trim()) return;
+                const updatedDb = { ...db };
+                updatedDb[selectedComp.id].folders = updatedDb[selectedComp.id].folders.map(f => 
+                    f.id === folderId ? { ...f, name: editFolderName } : f
+                );
+                handleUpdateDb(updatedDb);
+                setEditingFolderId(null);
+                showToast("폴더 이름이 변경되었습니다.");
+            };
+
+            const handleRealFileUpload = (e) => {
+                e.preventDefault();
+                if(!selectedComp || !uploadTargetFolder || !uploadFile) return;
+
+                const updatedDb = { ...db };
+                if(!updatedDb[selectedComp.id].files[uploadTargetFolder]) {
+                    updatedDb[selectedComp.id].files[uploadTargetFolder] = [];
+                }
+
+                const newFile = {
+                    id: `file_${Date.now()}`,
+                    name: uploadFile.name,
+                    date: new Date().toISOString().split('T')[0],
+                    size: `${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`,
+                    author: "시스템 관리자",
+                    url: "#" 
+                };
+
+                updatedDb[selectedComp.id].files[uploadTargetFolder].push(newFile);
+                updatedDb[selectedComp.id].stats.totalFiles += 1;
+                
+                handleUpdateDb(updatedDb);
+                setUploadFile(null);
+                setUploadTargetFolder(""); 
+                
+                const fileInput = document.getElementById('admin-file-upload');
+                if(fileInput) fileInput.value = "";
+                showToast(`[${selectedComp.name}] 폴더에 파일이 업로드 되었습니다.`);
+            };
+
+            return (
+                <div className="animate-in slide-in-from-bottom-4">
+                    <h2 className="text-3xl font-extrabold text-gray-900 mb-2">회원사 스페이스 관리 및 파일 업로드</h2>
+                    <p className="text-gray-500 mb-8">모든 회원사를 검색하여 폴더 구조를 편집하고 파일을 배포합니다.</p>
+
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 mb-8 relative z-50">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">대상 회원사 무한 검색</label>
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <input 
+                                type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-lg focus:bg-white focus:border-blue-500 transition-colors"
+                                placeholder={selectedComp ? "다른 회원사 검색으로 즉시 전환 (사업자번호 또는 회사명)" : "사업자번호 또는 회원사명 입력..."}
+                            />
+                            {searchTerm && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                                    {filteredComps.map(c => (
+                                        <div 
+                                            key={c.id} 
+                                            onClick={() => { 
+                                                setSelectedCompId(c.id); 
+                                                setSearchTerm(""); 
+                                                setUploadTargetFolder(""); 
+                                                setUploadFile(null);       
+                                            }} 
+                                            className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors"
+                                        >
+                                            <span className="font-bold text-gray-800">{c.name}</span>
+                                            <span className="text-sm font-mono text-gray-500">{c.authInfo.businessNumber}</span>
+                                        </div>
+                                    ))}
+                                    {filteredComps.length === 0 && <div className="p-4 text-gray-500 text-center font-medium">검색 결과가 없습니다.</div>}
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-3 font-mono">
+                            Firebase Storage: <span className="bg-gray-100 px-1 rounded text-blue-500">gs://member-private-folder.appspot.com/companies/{selectedComp ? selectedComp.id : '{companyId}'}/</span>
+                        </p>
+                    </div>
+
+                    {selectedComp && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in z-0 relative">
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-blue-200">
+                                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                                    <h3 className="font-extrabold text-xl text-blue-900">1. [{selectedComp.name}] 폴더 관리</h3>
+                                </div>
+                                
+                                <div className="flex gap-2 mb-6">
+                                    <input type="text" value={newFolderName} onChange={e=>setNewFolderName(e.target.value)} placeholder="새 문서 폴더명" className="flex-1 border border-gray-300 rounded-lg p-2.5 outline-none focus:border-blue-500" />
+                                    <button onClick={handleAddFolder} className="bg-slate-800 text-white px-4 py-2.5 rounded-lg font-bold">추가</button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {selectedComp.folders.map(f => (
+                                        <div key={f.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 group">
+                                            {editingFolderId === f.id ? (
+                                                <div className="flex gap-2 w-full">
+                                                    <input type="text" value={editFolderName} onChange={e=>setEditFolderName(e.target.value)} className="flex-1 border border-blue-300 rounded p-1 outline-none" autoFocus />
+                                                    <button onClick={()=>handleSaveEditFolder(f.id)} className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">저장</button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center gap-3 font-bold text-gray-700">
+                                                        <IconWrapper name="folder" size={18} className={f.color} /> {f.name}
+                                                    </div>
+                                                    <div className="hidden group-hover:flex items-center gap-2">
+                                                        <button onClick={()=>{setEditingFolderId(f.id); setEditFolderName(f.name);}} className="text-gray-400 hover:text-blue-600 p-1"><Edit2 size={16}/></button>
+                                                        <button onClick={()=>{ handleDeleteFolder(f.id); }} className="text-gray-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-200">
+                                <h3 className="font-extrabold text-xl text-emerald-900 mb-6 border-b pb-4">2. 선택한 폴더로 배포</h3>
+                                <form onSubmit={handleRealFileUpload} className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">배포 폴더</label>
+                                        <select value={uploadTargetFolder} onChange={e => setUploadTargetFolder(e.target.value)} required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                                            <option value="">선택하세요</option>
+                                            {selectedComp.folders.map(f => (
+                                                <option key={f.id} value={f.id}>{f.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">업로드 파일</label>
+                                        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50 flex flex-col items-center justify-center relative hover:bg-gray-100 transition-colors">
+                                            <input type="file" id="admin-file-upload" onChange={e => setUploadFile(e.target.files[0])} required className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                            <UploadCloud size={32} className="text-gray-400 mb-2" />
+                                            {uploadFile ? (
+                                                <p className="font-bold text-emerald-600">{uploadFile.name}</p>
+                                            ) : (
+                                                <p className="font-medium text-gray-500">클릭하거나 파일을 드래그 하세요.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex justify-center gap-2">
+                                        <Upload size={20} /> Storage 강제 배포
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const AdminManageView = ({ db, handleUpdateDb, showToast }) => {
+            const [checkedComps, setCheckedComps] = useState([]);
+            const [searchQuery, setSearchQuery] = useState("");
+            const companyList = Object.values(db);
+            const displayList = companyList.filter(c => c.name.includes(searchQuery) || c.authInfo.businessNumber.includes(searchQuery));
+
+            const handleToggleCheck = (id) => {
+                if(checkedComps.includes(id)) setCheckedComps(checkedComps.filter(c => c !== id));
+                else setCheckedComps([...checkedComps, id]);
+            };
+
+            const handleToggleAll = () => {
+                if(checkedComps.length === displayList.length) setCheckedComps([]);
+                else setCheckedComps(displayList.map(c => c.id));
+            };
+
+            const handleDeleteSelected = () => {
+                if(checkedComps.length === 0) return;
+                const updatedDb = { ...db };
+                checkedComps.forEach(id => delete updatedDb[id]);
+                handleUpdateDb(updatedDb);
+                setCheckedComps([]);
+                showToast(`선택된 데이터가 파기되었습니다.`);
+            };
+
+            const handleDeleteSingle = (id, name) => {
+                const updatedDb = { ...db };
+                delete updatedDb[id];
+                handleUpdateDb(updatedDb);
+                setCheckedComps(checkedComps.filter(c => c !== id));
+                showToast(`데이터가 파기되었습니다.`);
+            };
+
+            const handleDownloadExcel = () => {
+                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                csvContent += "회사명,사업자등록번호,담당자이메일,누적접속수,할당파일수,최종접속일\n";
+                displayList.forEach(c => {
+                    csvContent += `"${c.name}","${c.authInfo.businessNumber}","${c.authInfo.email || '-'}",${c.stats.loginCount || 0},${c.stats.totalFiles},"${c.stats.lastUpdated}"\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `회원사_접속현황.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("엑셀 다운로드가 완료되었습니다.");
+            };
+
+            return (
+                <div className="animate-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">회원사 관리 및 접속 현황</h2>
+                            <p className="text-gray-500">전체 회원사의 활동을 모니터링하고 권한을 통제합니다.</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2">
+                                <FileDown size={18} /> 엑셀 리포트 추출
+                            </button>
+                            {checkedComps.length > 0 && (
+                                <button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2">
+                                    <Trash2 size={18} /> 선택 일괄 파기
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[600px]">
+                        <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center">
+                            <div className="relative w-96">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                <input 
+                                    type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder="회사명 또는 사업자번호 검색..."
+                                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="overflow-y-auto flex-1 relative">
+                            <table className="w-full text-left">
+                                <thead className="bg-white sticky top-0 z-10 shadow-sm border-b border-gray-200">
+                                    <tr className="text-sm text-gray-500 font-bold">
+                                        <th className="py-3 px-4 w-12 text-center"><input type="checkbox" checked={checkedComps.length === displayList.length && displayList.length > 0} onChange={handleToggleAll} className="w-4 h-4" /></th>
+                                        <th className="py-3 px-4">회사명</th>
+                                        <th className="py-3 px-4">사업자번호</th>
+                                        <th className="py-3 px-4">담당자 이메일</th>
+                                        <th className="py-3 px-4 text-center">누적 접속</th>
+                                        <th className="py-3 px-4 text-center">보유 자료</th>
+                                        <th className="py-3 px-4 text-center">관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {displayList.map(c => (
+                                        <tr key={c.id} className="hover:bg-blue-50/50">
+                                            <td className="py-3 px-4 text-center"><input type="checkbox" checked={checkedComps.includes(c.id)} onChange={() => handleToggleCheck(c.id)} className="w-4 h-4" /></td>
+                                            <td className="py-3 px-4 font-bold text-gray-900">{c.name}</td>
+                                            <td className="py-3 px-4 font-mono text-sm text-gray-600">{c.authInfo.businessNumber}</td>
+                                            <td className="py-3 px-4 text-sm text-gray-600">{c.authInfo.email || '-'}</td>
+                                            <td className="py-3 px-4 text-center font-bold text-blue-600">{c.stats.loginCount || 0}회</td>
+                                            <td className="py-3 px-4 text-center text-sm text-gray-600">{c.stats.totalFiles}건</td>
+                                            <td className="py-3 px-4 text-center">
+                                                <button onClick={() => handleDeleteSingle(c.id, c.name)} className="p-1.5 text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminDashboard = ({ db, handleUpdateDb, handleLogout, showToast }) => {
+            const [adminMenu, setAdminMenu] = useState('DASHBOARD');
+            return (
+                <div className="flex h-screen bg-gray-50 w-full animate-in fade-in">
+                    <div className="w-72 bg-slate-900 text-white flex flex-col shadow-2xl z-20 relative">
+                        <div className="p-6 border-b border-slate-800 bg-black/20">
+                            <div className="flex items-center gap-3 text-blue-400 mb-1">
+                                <Server size={28} />
+                                <h1 className="font-extrabold text-xl tracking-tight">Admin Console</h1>
+                            </div>
+                        </div>
+                        <nav className="p-4 space-y-2 flex-1">
+                            <button onClick={() => setAdminMenu('DASHBOARD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${adminMenu === 'DASHBOARD' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}><Database size={18} /> 통합 대시보드</button>
+                            <button onClick={() => setAdminMenu('REGISTER')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${adminMenu === 'REGISTER' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}><UserPlus size={18} /> 신규 회원사 권한 등록</button>
+                            <button onClick={() => setAdminMenu('UPLOAD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${adminMenu === 'UPLOAD' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}><UploadCloud size={18} /> 전용 폴더 및 파일 배포</button>
+                            <button onClick={() => setAdminMenu('MANAGE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold ${adminMenu === 'MANAGE' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-slate-800'}`}><Users size={18} /> 회원사 관리 및 접속 현황</button>
+                        </nav>
+                        <div className="p-5 border-t border-slate-800">
+                            <button onClick={handleLogout} className="flex items-center justify-center gap-2 w-full py-3 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-xl font-bold text-sm"><LogOut size={16} /> 로그아웃</button>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-10 relative">
+                        <div className="max-w-6xl mx-auto">
+                            {adminMenu === 'DASHBOARD' && <AdminDashboardView companyList={Object.values(db)} />}
+                            {adminMenu === 'REGISTER' && <AdminRegisterView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
+                            {adminMenu === 'UPLOAD' && <AdminUploadView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
+                            {adminMenu === 'MANAGE' && <AdminManageView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 3. 회원사 전용 스페이스 하위 뷰
+        // ==========================================
+        const CompanyHeader = ({ companyData, handleLogout }) => (
+            <header className="bg-white border-b border-gray-200 h-20 flex items-center justify-between px-10 sticky top-0 z-20 shadow-sm w-full no-print">
+                <div className="flex items-center gap-4">
+                    <Lock size={32} className="text-slate-800" />
+                    <div>
+                        <h1 className="font-extrabold text-xl text-gray-900 tracking-tight">회원사 전용 산업보건 데이터 센터</h1>
+                        <p className="text-[11px] text-gray-400 font-mono tracking-widest mt-0.5">SECURE CONNECTION : {companyData.id}</p>
+                    </div>
+                </div>
+                <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-red-500 transition-colors">
+                    <LogOut size={18} /> 로그아웃
+                </button>
+            </header>
+        );
+
+        const CompanyHome = ({ companyData, setActiveFolderId, showToast }) => (
+            <div className="animate-in fade-in duration-500">
+                <div className="mb-12">
+                    <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                        <ShieldCheck className="text-blue-600"/> {companyData.name} 전용 스페이스
+                    </h2>
+                    <p className="text-gray-500 mt-2 text-base font-medium">귀사만의 독립된 보안 클라우드 공간입니다. 회원사 안전보건관계자 외 접근을 엄격히 금지합니다.</p>
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2 border-b-2 border-blue-100 pb-3">
+                    <Folder size={24} className="text-blue-600" /> [{companyData.name}] 안전보건폴더
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
+                    {companyData.folders.map(folder => (
+                        <div 
+                            key={folder.id} onClick={() => setActiveFolderId(folder.id)}
+                            className="bg-white border border-gray-200 p-6 rounded-2xl hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer group"
+                        >
+                            <div className={`w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform ${folder.color}`}>
+                                <IconWrapper name="folder" size={24} />
+                            </div>
+                            <h4 className="font-bold text-gray-900 mb-1 text-lg">{folder.name}</h4>
+                            <p className="text-sm text-gray-500 font-medium">관리자 배포 문서함</p>
+                        </div>
+                    ))}
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2 border-b-2 border-green-100 pb-3">
+                    <Share2 size={24} className="text-green-600" /> MSDS 자료함 (테스트 중)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                     <div 
+                            onClick={() => setActiveFolderId('msds_public_qr')}
+                            className="bg-gradient-to-br from-green-50 to-white border border-green-200 p-6 rounded-2xl transition-all cursor-pointer group relative overflow-hidden hover:shadow-lg hover:border-green-400"
+                        >
+                            <div className={`w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mb-4 text-green-600 group-hover:scale-110 transition-transform`}>
+                                <QrCode size={24} />
+                            </div>
+                            <h4 className="font-bold text-gray-900 mb-1 text-lg">MSDS 현장 공유 (QR)</h4>
+                            <p className="text-sm text-green-600 font-medium">공정별 MSDS 업로드 및 현장 QR 발급</p>
+                        </div>
+                </div>
+            </div>
+        );
+
+        const CompanyFolderView = ({ companyData, activeFolderId, setActiveFolderId, showToast }) => {
+            const activeFolder = companyData.folders.find(f => f.id === activeFolderId);
+            const files = companyData.files[activeFolderId] || [];
+
+            const handleDownload = (file) => {
+                const text = `이 파일은 가상의 문서입니다.\n\n파일명: ${file.name}\n등록자: ${file.author}\n보안 등급: 대외비`;
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name.replace('.pdf', '.txt');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast(`[${file.name}] 다운로드가 완료되었습니다.`);
+            };
+
+            return (
+                <div className="animate-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => setActiveFolderId(null)} className="mb-6 flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900">
+                        <ArrowLeft size={18} /> 전체 폴더 목록으로 돌아가기
+                    </button>
+
+                    <div className="mb-8 pb-6 border-b-2 border-gray-100">
+                        <h2 className="text-3xl font-extrabold text-gray-900 flex items-center gap-4">
+                            <div className={`p-3 rounded-2xl bg-gray-50 border shadow-sm ${activeFolder.color}`}>
+                                <IconWrapper name="folder" size={32} />
+                            </div>
+                            {activeFolder.name}
+                        </h2>
+                        <p className="text-sm text-gray-400 mt-3">※ 이 폴더의 자료는 관리자만 업로드할 수 있으며, 회원사는 조회 및 다운로드만 가능합니다.</p>
+                    </div>
+
+                    {files.length > 0 ? (
+                        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 font-bold">
+                                        <th className="py-4 px-6 w-1/2">보안 파일명</th>
+                                        <th className="py-4 px-6">업로드 일자</th>
+                                        <th className="py-4 px-6">용량</th>
+                                        <th className="py-4 px-6 text-right">기능</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {files.map((file) => (
+                                        <tr key={file.id} className="border-b border-gray-100 hover:bg-blue-50/30">
+                                            <td className="py-4 px-6 font-bold text-gray-900 flex items-center gap-3"><FileText size={20} className="text-blue-400" /> {file.name}</td>
+                                            <td className="py-4 px-6 text-sm text-gray-600">{file.date}</td>
+                                            <td className="py-4 px-6 text-sm text-gray-500 font-mono">{file.size}</td>
+                                            <td className="py-4 px-6 text-right">
+                                                <button onClick={() => handleDownload(file)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-lg text-sm font-bold inline-flex items-center gap-2">
+                                                    <Download size={16}/> 다운로드 받기
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="bg-gray-50/50 border-2 border-dashed border-gray-300 rounded-3xl p-16 flex flex-col items-center justify-center text-center">
+                            <Folder size={64} className="text-gray-300 mb-4" />
+                            <h3 className="text-xl font-extrabold text-gray-800 mb-2">보관된 자료가 없습니다</h3>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const CompanyMsdsView = ({ companyData, handleUpdateCompany, setActiveFolderId, showToast }) => {
+            const [activeProcId, setActiveProcId] = useState(companyData.msdsProcesses?.[0]?.id || null);
+            const [newProcName, setNewProcName] = useState("");
+            const [editingProcId, setEditingProcId] = useState(null);
+            const [editProcName, setEditProcName] = useState("");
+            const [showQrModal, setShowQrModal] = useState(false);
+            const [uploadFile, setUploadFile] = useState(null);
+
+            const processes = companyData.msdsProcesses || [];
+            const files = activeProcId ? (companyData.msdsFiles?.[activeProcId] || []) : [];
+
+            const handleAddProcess = () => {
+                if (!newProcName.trim()) return;
+                const newId = `proc_${Date.now()}`;
+                const updated = { ...companyData };
+                updated.msdsProcesses = [...(updated.msdsProcesses || []), { id: newId, name: newProcName }];
+                updated.msdsFiles = { ...updated.msdsFiles, [newId]: [] };
+                handleUpdateCompany(updated);
+                setNewProcName("");
+                setActiveProcId(newId);
+                showToast("새 공정이 추가되었습니다.");
+            };
+
+            const handleSaveEditProc = (procId) => {
+                if (!editProcName.trim()) return;
+                const updated = { ...companyData };
+                updated.msdsProcesses = updated.msdsProcesses.map(p => p.id === procId ? { ...p, name: editProcName } : p);
+                handleUpdateCompany(updated);
+                setEditingProcId(null);
+                showToast("공정명이 수정되었습니다.");
+            };
+
+            const handleUploadMsds = (e) => {
+                e.preventDefault();
+                if (!uploadFile || !activeProcId) return;
+                const updated = { ...companyData };
+                updated.msdsFiles[activeProcId] = [...(updated.msdsFiles[activeProcId] || []), { id: `m_${Date.now()}`, name: uploadFile.name, date: new Date().toISOString().split('T')[0] }];
+                handleUpdateCompany(updated);
+                setUploadFile(null);
+                const fileInput = document.getElementById('msds-file-input');
+                if(fileInput) fileInput.value = "";
+                showToast("MSDS 파일 업로드 완료");
+            };
+
+            const handlePrintQr = () => {
+                window.print();
+            };
+
+            return (
+                <div className="animate-in slide-in-from-right-8">
+                    <button onClick={() => setActiveFolderId(null)} className="mb-6 flex items-center gap-2 text-gray-500 font-bold hover:text-gray-900 transition-colors no-print">
+                        <ArrowLeft size={18} /> 대시보드 홈으로
+                    </button>
+                    <div className="flex justify-between items-center mb-8 border-b-2 border-green-200 pb-5 no-print">
+                        <div>
+                            <h2 className="text-3xl font-extrabold text-green-900 flex items-center gap-3"><QrCode size={32}/> MSDS 현장 공유 (QR)</h2>
+                            <p className="text-gray-500 mt-2 font-medium">공정별로 폴더를 생성하고 직접 MSDS를 등록하세요.</p>
+                        </div>
+                        <button onClick={() => setShowQrModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold flex gap-2">
+                            <QrCode size={20}/> 현장 부착용 QR 발급
+                        </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 no-print">
+                        <div className="col-span-1 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            <h3 className="font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2"><Folder size={18} className="text-green-500"/> 공정 폴더 관리</h3>
+                            <div className="flex gap-2 mb-4">
+                                <input type="text" value={newProcName} onChange={e=>setNewProcName(e.target.value)} placeholder="새 공정명" className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none"/>
+                                <button onClick={handleAddProcess} className="bg-slate-800 text-white p-2.5 rounded-lg"><Plus size={18}/></button>
+                            </div>
+                            <div className="space-y-2">
+                                {processes.map(p => (
+                                    <div key={p.id} className={`p-3 rounded-xl flex justify-between items-center group transition-colors border ${activeProcId === p.id ? 'bg-green-50 border-green-200 font-bold text-green-900' : 'bg-gray-50 border-gray-100 text-gray-700'}`}>
+                                        {editingProcId === p.id ? (
+                                            <div className="flex gap-2 w-full">
+                                                <input type="text" value={editProcName} onChange={e=>setEditProcName(e.target.value)} className="w-full border border-green-400 rounded p-1 text-sm outline-none" autoFocus />
+                                                <button onClick={()=>handleSaveEditProc(p.id)} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold">저장</button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span onClick={()=>setActiveProcId(p.id)} className="cursor-pointer flex-1 truncate"><Folder size={16} className={`inline mr-2 ${activeProcId === p.id ? "text-green-600" : "text-gray-400"}`}/> {p.name}</span>
+                                                <button onClick={() => { setEditingProcId(p.id); setEditProcName(p.name); }} className="text-gray-400 hover:text-green-600 hidden group-hover:flex p-1"><Edit2 size={14}/></button>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="col-span-3 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
+                            {activeProcId ? (
+                                <>
+                                    <div className="flex justify-between items-center mb-6 border-b pb-4">
+                                        <h3 className="font-bold text-xl text-gray-800"><span className="text-green-600 bg-green-50 px-3 py-1 rounded-lg">[{processes.find(p=>p.id===activeProcId)?.name}]</span> 배포용 MSDS</h3>
+                                        <form onSubmit={handleUploadMsds} className="flex gap-3 items-center bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                            <input id="msds-file-input" type="file" onChange={e=>setUploadFile(e.target.files[0])} required className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-green-100 file:text-green-700 cursor-pointer" />
+                                            <button type="submit" className="bg-slate-800 text-white px-5 py-2 rounded-lg text-sm font-bold">신규 등록</button>
+                                        </form>
+                                    </div>
+                                    <table className="w-full text-left bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                        <thead className="bg-gray-50 text-gray-500 text-sm"><tr><th className="py-3 px-6">문서명</th><th className="py-3 px-6">등록 일자</th></tr></thead>
+                                        <tbody>
+                                            {files.map(f => (<tr key={f.id} className="border-t border-gray-100 hover:bg-green-50/30"><td className="py-4 px-6 font-bold text-gray-800 flex items-center gap-2"><FileText size={16} className="text-green-500"/> {f.name}</td><td className="py-4 px-6 text-sm text-gray-500">{f.date}</td></tr>))}
+                                        </tbody>
+                                    </table>
+                                </>
+                            ) : (<div className="flex flex-col items-center justify-center h-full text-gray-400"><Folder size={48} /><p>공정 폴더를 선택해주세요.</p></div>)}
+                        </div>
+                    </div>
+
+                    {/* QR Print Modal / Section */}
+                    {showQrModal && (
+                        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 no-print">
+                            <div className="bg-white p-10 rounded-3xl max-w-sm w-full text-center relative shadow-2xl">
+                                <button onClick={()=>setShowQrModal(false)} className="absolute top-5 right-5 text-gray-400 hover:text-red-500"><X size={24}/></button>
+                                <h3 className="text-2xl font-extrabold mb-6 text-green-900">MSDS QR 공유</h3>
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://safety.com/msds/${companyData.id}`} alt="QR" className="mx-auto mb-6" />
+                                <button onClick={handlePrintQr} className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2">
+                                    🖨️ 현장 포스터 인쇄하기
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Hidden section specifically meant for printing */}
+                    <div id="print-section" className="hidden print:flex flex-col items-center justify-center h-screen bg-white text-center">
+                        <h1 className="text-5xl font-black mb-10 text-green-800 tracking-tight">{companyData.name}<br/>물질안전보건자료(MSDS)</h1>
+                        <div className="border-8 border-green-600 p-8 rounded-3xl inline-block mb-10 bg-white">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=https://safety.com/msds/${companyData.id}`} alt="QR" className="w-[400px] h-[400px]" />
+                        </div>
+                        <h2 className="text-4xl font-extrabold text-gray-800">스마트폰 카메라로<br/>QR코드를 스캔하세요.</h2>
+                        <p className="mt-8 text-2xl text-gray-500 font-bold border-t-2 border-gray-200 pt-8 w-2/3">별도의 로그인이나 비밀번호 없이<br/>해당 공정의 MSDS를 즉시 확인할 수 있습니다.</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const CompanyDashboard = ({ currentUser, handleUpdateCompany, handleLogout, showToast }) => {
+            const [activeFolderId, setActiveFolderId] = useState(null);
+            
+            return (
+                <div className="flex flex-col h-screen bg-gray-50 w-full animate-in fade-in duration-500">
+                    <CompanyHeader companyData={currentUser} handleLogout={handleLogout} />
+                    <main className="flex-1 overflow-y-auto p-10 lg:px-20 print:p-0 print:overflow-hidden">
+                        <div className="max-w-6xl mx-auto">
+                            {!activeFolderId && <CompanyHome companyData={currentUser} setActiveFolderId={setActiveFolderId} showToast={showToast} />}
+                            {activeFolderId && activeFolderId !== 'msds_public_qr' && <CompanyFolderView companyData={currentUser} activeFolderId={activeFolderId} setActiveFolderId={setActiveFolderId} showToast={showToast} />}
+                            {activeFolderId === 'msds_public_qr' && <CompanyMsdsView companyData={currentUser} handleUpdateCompany={handleUpdateCompany} setActiveFolderId={setActiveFolderId} showToast={showToast} />}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 메인 App 컴포넌트
+        // ==========================================
+        function App() {
+            const [appState, setAppState] = useState('LOGIN'); 
+            const [currentUser, setCurrentUser] = useState(null); 
+            const [db, setDb] = useState(generateEnterpriseDatabase(1)); 
+            const [toastMessage, setToastMessage] = useState("");
+            
+            const showToast = (msg) => {
+                setToastMessage(msg);
+                setTimeout(() => setToastMessage(""), 3000);
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                setAppState('LOGIN');
+                showToast("안전하게 로그아웃 되었습니다.");
+            };
+
+            const handleUpdateDb = (newDb) => {
+                setDb(newDb);
+            };
+
+            const handleUpdateCompany = (updatedCompany) => {
+                setDb(prev => ({ ...prev, [updatedCompany.id]: updatedCompany }));
+                setCurrentUser(updatedCompany);
+            };
+
+            return (
+                <div className="h-screen w-full font-sans overflow-hidden bg-black text-gray-900 print:bg-white">
+                    {toastMessage && (
+                        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-[100] bg-gray-900/95 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-6 no-print">
+                            <CheckCircle size={20} className="text-green-400 shrink-0" />
+                            <span className="text-sm font-bold tracking-wide">{toastMessage}</span>
+                        </div>
+                    )}
+
+                    {appState === 'LOGIN' && <LoginScreen db={db} setCurrentUser={setCurrentUser} setAppState={setAppState} showToast={showToast} />}
+                    {appState === 'ADMIN' && <AdminDashboard db={db} handleUpdateDb={handleUpdateDb} handleLogout={handleLogout} showToast={showToast} />}
+                    {appState === 'COMPANY' && <CompanyDashboard currentUser={currentUser} handleUpdateCompany={handleUpdateCompany} handleLogout={handleLogout} showToast={showToast} />}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
