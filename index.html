@@ -18,7 +18,7 @@
     <!-- Lucide Icons Fix: UMD 빌드에서 소문자 react 전역 변수를 찾지 못하는 문제 해결 -->
     <script>window.react = window.React;</script>
     
-    <!-- Lucide Icons (React version - 안정적인 버전으로 교체) -->
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide-react@0.284.0/dist/umd/lucide-react.min.js"></script>
 
     <style>
@@ -46,7 +46,6 @@
         
         const lucideIcons = window.lucide || window.LucideReact || window.lucideReact || {};
         
-        // 아이콘이 없을 경우 앱이 멈추지 않도록 대체(Fallback) 블록을 반환하는 함수
         const getIcon = (name) => lucideIcons[name] || (() => React.createElement('div', { className: 'w-4 h-4 bg-gray-300 rounded-sm inline-block' }));
 
         const Folder = getIcon('Folder');
@@ -103,6 +102,59 @@
             return db;
         };
 
+        const PublicMsdsView = ({ companyData }) => {
+            const [activeProcId, setActiveProcId] = useState(companyData.msdsProcesses?.[0]?.id || null);
+            const processes = companyData.msdsProcesses || [];
+            const files = activeProcId ? (companyData.msdsFiles?.[activeProcId] || []) : [];
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-4 font-sans animate-in fade-in flex justify-center">
+                    <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden flex flex-col">
+                        <div className="bg-[#0b2b5e] p-8 text-white text-center relative shrink-0">
+                            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+                            <div className="relative z-10">
+                                <ShieldCheck size={48} className="mx-auto mb-4 text-blue-300" />
+                                <h1 className="text-2xl font-extrabold tracking-tight">{companyData.name}</h1>
+                                <p className="text-sm text-blue-200 mt-2 font-medium">현장 근로자 전용 MSDS 열람소</p>
+                            </div>
+                        </div>
+                        <div className="p-6 flex-1 overflow-y-auto">
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><Folder size={16} className="text-[#0b2b5e]"/> 공정 선택</label>
+                                <select value={activeProcId || ''} onChange={(e) => setActiveProcId(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none font-bold text-gray-800">
+                                    {processes.length === 0 && <option value="">등록된 공정이 없습니다</option>}
+                                    {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><FileText size={18} className="text-green-600"/> 해당 공정 MSDS 자료</h3>
+                                <div className="space-y-3">
+                                    {files.length === 0 ? (
+                                        <div className="text-center bg-gray-50 rounded-xl p-8 text-gray-400 text-sm border border-dashed border-gray-200">
+                                            <FileText size={32} className="mx-auto mb-2 opacity-30"/>
+                                            해당 공정에 배포된 MSDS가 없습니다.
+                                        </div>
+                                    ) : (
+                                        files.map(f => (
+                                            <div key={f.id} className="flex justify-between items-center p-4 bg-white rounded-xl border border-gray-200 shadow-sm hover:border-[#0b2b5e] transition-colors">
+                                                <div className="flex flex-col overflow-hidden mr-3">
+                                                    <span className="text-sm font-bold text-gray-900 truncate">{f.name}</span>
+                                                    <span className="text-xs text-gray-500 mt-0.5">{f.date}</span>
+                                                </div>
+                                                <button onClick={() => alert(`[모바일 다운로드 시뮬레이션]\n\n${f.name} 파일 열람을 시작합니다.`)} className="text-white text-xs font-bold shrink-0 bg-[#0b2b5e] hover:bg-blue-900 px-4 py-2.5 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center gap-1.5">
+                                                    <Download size={14}/> 열람
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const LoginScreen = ({ db, setCurrentUser, setAppState, showToast, setAccessLogs }) => {
             const [loginType, setLoginType] = useState('COMPANY'); 
             const [bizNum, setBizNum] = useState("");
@@ -132,7 +184,6 @@
                     
                     company.stats.loginCount = (company.stats.loginCount || 0) + 1;
                     
-                    // 개별 접속 로그(Log) 기록 추가
                     setAccessLogs(prev => [{
                         id: `log_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
                         companyName: company.name,
@@ -345,14 +396,12 @@
             const [editFolderName, setEditFolderName] = useState("");
             const [uploadTargetFolder, setUploadTargetFolder] = useState("");
             const [uploadFile, setUploadFile] = useState(null);
-            
-            // 파일 수정/삭제를 위한 상태 추가
             const [editingFileId, setEditingFileId] = useState(null);
             const [editFileName, setEditFileName] = useState("");
 
             const companyList = Object.values(db);
             const filteredComps = useMemo(() => {
-                if(!searchTerm.trim()) return companyList.slice(0, 50); // 검색어가 없어도 기본 50개 리스트 노출
+                if(!searchTerm.trim()) return companyList.slice(0, 50); 
                 return companyList.filter(c => c.name.includes(searchTerm) || c.authInfo.businessNumber.includes(searchTerm)).slice(0, 50);
             }, [searchTerm, companyList]);
 
@@ -382,17 +431,14 @@
                 handleUpdateDb(updatedDb); setEditingFolderId(null); showToast("폴더 이름이 변경되었습니다.");
             };
 
-            // 개별 파일 삭제 로직 추가
             const handleDeleteFile = (folderId, fileId) => {
                 if(!selectedComp) return;
                 const updatedDb = { ...db };
                 updatedDb[selectedComp.id].files[folderId] = updatedDb[selectedComp.id].files[folderId].filter(f => f.id !== fileId);
-                // 회원사의 전체 파일 수 업데이트 (0 미만 방지)
                 updatedDb[selectedComp.id].stats.totalFiles = Math.max(0, updatedDb[selectedComp.id].stats.totalFiles - 1);
                 handleUpdateDb(updatedDb); showToast("배포된 파일이 삭제되었습니다.");
             };
 
-            // 개별 파일 이름 수정 로직 추가
             const handleSaveEditFile = (folderId, fileId) => {
                 if(!selectedComp || !editFileName.trim()) return;
                 const updatedDb = { ...db };
@@ -479,7 +525,6 @@
                                                 )}
                                             </div>
                                             
-                                            {/* 폴더 내 배포된 파일 현황 고밀도 리스트 */}
                                             <div className="bg-white">
                                                 {(!selectedComp.files[f.id] || selectedComp.files[f.id].length === 0) ? (
                                                     <div className="text-xs text-gray-400 p-3 text-center bg-gray-50/50">배포된 파일이 없습니다. 우측에서 업로드해주세요.</div>
@@ -601,7 +646,7 @@
                             <tbody className="divide-y divide-gray-100">
                                 {accessLogs.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" className="text-center py-16 text-gray-400">
+                                        <td colSpan="7" className="text-center py-16 text-gray-400">
                                             <Users size={48} className="mx-auto mb-4 text-gray-300" />
                                             아직 회원의 접속 기록이 없습니다.
                                         </td>
@@ -632,6 +677,101 @@
             );
         };
 
+        const AdminDashboard = ({ db, handleUpdateDb, handleLogout, showToast, accessLogs, setAccessLogs }) => {
+            const [adminMenu, setAdminMenu] = useState('DASHBOARD');
+            return (
+                <div className="flex h-screen bg-gray-50 w-full animate-in fade-in">
+                    <div className="w-72 bg-white border-r border-gray-200 text-gray-700 flex flex-col shadow-sm z-20 relative">
+                        <div className="p-6 border-b border-gray-200 bg-gray-50">
+                            <div className="flex items-center gap-3 text-[#0b2b5e] mb-1">
+                                <Server size={28} />
+                                <h1 className="font-extrabold text-xl tracking-tight">Admin Console</h1>
+                            </div>
+                        </div>
+                        <nav className="p-4 space-y-2 flex-1">
+                            <button onClick={() => setAdminMenu('DASHBOARD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'DASHBOARD' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18} /> 통합 대시보드</button>
+                            <button onClick={() => setAdminMenu('REGISTER')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'REGISTER' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><UserPlus size={18} /> 신규 회원사 등록</button>
+                            <button onClick={() => setAdminMenu('UPLOAD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'UPLOAD' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><UploadCloud size={18} /> 전용 폴더 및 파일 배포</button>
+                            <button onClick={() => setAdminMenu('MANAGE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'MANAGE' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><Users size={18} /> 회원사 접속 현황 관리</button>
+                        </nav>
+                        <div className="p-5 border-t border-gray-200 bg-gray-50">
+                            <button onClick={handleLogout} className="flex items-center justify-center gap-2 w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-colors"><LogOut size={16} /> 로그아웃</button>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-10 relative">
+                        <div className="max-w-6xl mx-auto">
+                            {adminMenu === 'DASHBOARD' && <AdminDashboardView companyList={Object.values(db)} />}
+                            {adminMenu === 'REGISTER' && <AdminRegisterView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
+                            {adminMenu === 'UPLOAD' && <AdminUploadView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
+                            {adminMenu === 'MANAGE' && <AdminManageView accessLogs={accessLogs} setAccessLogs={setAccessLogs} showToast={showToast} />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CompanyHome = ({ companyData, setActiveFolderId }) => (
+            <div className="animate-in fade-in duration-500">
+                <div className="mb-12">
+                    <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                        <Lock className="text-[#0b2b5e]"/> 회원사 전용 산업보건 데이터 센터
+                    </h2>
+                    <p className="text-gray-500 mt-2 text-base font-medium">귀사만의 독립된 보안 공간입니다. 회원사 안전보건관계자 외 접근을 엄격히 금지합니다.</p>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2 border-b-2 border-blue-100 pb-3">
+                    <Folder size={24} className="text-[#0b2b5e]" /> [{companyData.name}] 안전보건폴더
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {companyData.folders.map(folder => (
+                        <div key={folder.id} onClick={() => setActiveFolderId(folder.id)} className="bg-white border border-gray-200 p-6 rounded-2xl hover:border-[#0b2b5e] hover:shadow-lg transition-all cursor-pointer group">
+                            <div className={`w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform ${folder.color}`}><folder.icon size={24} /></div>
+                            <h4 className="font-bold text-gray-900 mb-1 text-lg">{folder.name}</h4>
+                            <p className="text-sm text-gray-500 font-medium">관리자 배포 문서함</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
+        const CompanyFolderView = ({ companyData, activeFolderId, setActiveFolderId, showToast }) => {
+            const activeFolder = companyData.folders.find(f => f.id === activeFolderId);
+            const files = companyData.files[activeFolderId] || [];
+
+            const handleDownload = (file) => {
+                const text = `가상의 보안 다운로드 문서입니다.\n\n파일명: ${file.name}\n등록자: ${file.author}`;
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = file.name.replace('.pdf', '.txt');
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+                showToast(`[${file.name}] 다운로드 시작`);
+            };
+
+            return (
+                <div className="animate-in slide-in-from-right-8 duration-300">
+                    <button onClick={() => setActiveFolderId(null)} className="mb-6 flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900"><ArrowLeft size={18} /> 전체 목록으로 돌아가기</button>
+                    <div className="mb-8 pb-6 border-b-2 border-gray-100">
+                        <h2 className="text-3xl font-extrabold text-gray-900 flex items-center gap-4"><div className={`p-3 rounded-2xl bg-gray-50 border shadow-sm ${activeFolder.color}`}><activeFolder.icon size={32} /></div>{activeFolder.name}</h2>
+                    </div>
+                    {files.length > 0 ? (
+                        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                            <table className="w-full text-left">
+                                <thead><tr className="bg-gray-50 border-b text-sm text-gray-500 font-bold"><th className="py-4 px-6">보안 파일명</th><th className="py-4 px-6">업로드 일자</th><th className="py-4 px-6 text-right">기능</th></tr></thead>
+                                <tbody>
+                                    {files.map((file) => (
+                                        <tr key={file.id} className="border-b hover:bg-blue-50/30">
+                                            <td className="py-4 px-6 font-bold text-gray-900 flex items-center gap-3"><FileText size={20} className="text-[#0b2b5e]" /> {file.name}</td>
+                                            <td className="py-4 px-6 text-sm text-gray-600">{file.date}</td>
+                                            <td className="py-4 px-6 text-right"><button onClick={() => handleDownload(file)} className="text-[#0b2b5e] bg-blue-50 hover:bg-[#0b2b5e] hover:text-white px-4 py-2 rounded-lg text-sm font-bold inline-flex items-center gap-2"><Download size={16}/> 다운로드</button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (<div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl p-16 flex flex-col items-center justify-center text-center"><Folder size={64} className="text-gray-300 mb-4" /><h3 className="text-xl font-extrabold text-gray-800">보관된 자료가 없습니다</h3></div>)}
+                </div>
+            );
+        };
+
         const CompanyMsdsView = ({ companyData, handleUpdateCompany, showToast }) => {
             const [activeProcId, setActiveProcId] = useState(companyData.msdsProcesses?.[0]?.id || null);
             const [newProcName, setNewProcName] = useState("");
@@ -642,6 +782,9 @@
 
             const processes = companyData.msdsProcesses || [];
             const files = activeProcId ? (companyData.msdsFiles?.[activeProcId] || []) : [];
+
+            // QR 스캔 시 연결될 현재 페이지의 퍼블릭 파라미터 URL
+            const qrDataUrl = `${window.location.origin}${window.location.pathname}?public_msds=${companyData.id}`;
 
             const handleAddProcess = () => {
                 if (!newProcName.trim()) return;
@@ -678,7 +821,6 @@
 
             const handlePrintQr = () => {
                 const printWindow = window.open('', '_blank');
-                // 백틱(템플릿 리터럴) 내에서의 복잡한 스크립트 중첩을 피해 안전하게 문자열로 병합
                 const htmlContent = [
                     '<html><head><title>QR 포스터 인쇄</title><style>',
                     'body { font-family: "Inter", sans-serif; text-align: center; padding: 50px; background-color: #f8fafc; }',
@@ -689,7 +831,7 @@
                     '</style></head><body>',
                     '<div class="card">',
                     '<h1>[' + companyData.name + '] 안전보건자료</h1>',
-                    '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://safety.com/msds/' + companyData.id + '" alt="QR Code" />',
+                    '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qrDataUrl) + '" alt="QR Code" />',
                     '<p>스마트폰 카메라로 스캔하여 MSDS를 확인하세요</p>',
                     '</div>',
                     '</body></html>'
@@ -697,7 +839,6 @@
 
                 printWindow.document.write(htmlContent);
                 printWindow.document.close();
-                // 브라우저 렌더링 후 인쇄 대화상자 호출
                 setTimeout(() => {
                     printWindow.focus();
                     printWindow.print();
@@ -772,7 +913,7 @@
                                 <h3 className="text-2xl font-extrabold mb-2 text-gray-900">MSDS QR 공유</h3>
                                 <p className="text-gray-500 text-sm mb-6">아래 QR을 스캔하면 MSDS를 볼 수 있습니다.</p>
                                 <div className="bg-gray-50 p-4 rounded-2xl inline-block mb-6 border border-gray-100">
-                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://safety.com/msds/${companyData.id}`} alt="QR" className="mx-auto rounded-lg" />
+                                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrDataUrl)}`} alt="QR" className="mx-auto rounded-lg" />
                                 </div>
                                 <button onClick={handlePrintQr} className="w-full bg-[#0b2b5e] hover:bg-blue-900 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-colors">🖨️ 포스터 인쇄하기 (Print)</button>
                             </div>
@@ -782,136 +923,52 @@
             );
         };
 
-        const AdminMsdsTestView = ({ showToast }) => {
-            const [testCompany, setTestCompany] = useState({
-                id: 'admin_test_999',
-                name: '경남지역본부 테스트랩',
-                msdsProcesses: [{ id: "proc_base_1", name: "세척공정" }],
-                msdsFiles: { "proc_base_1": [] }
-            });
+        const MsdsPasswordView = ({ onSuccess }) => {
+            const [pwd, setPwd] = useState("");
+            const [err, setErr] = useState("");
 
-            return (
-                <div className="animate-in slide-in-from-bottom-4">
-                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-2xl mb-8 text-yellow-800 flex items-center gap-3 font-bold shadow-sm">
-                        <AlertTriangle size={24} className="shrink-0 text-yellow-600" />
-                        <div>
-                            <p className="text-lg">관리자 전용 MSDS QR공유 테스트 환경입니다.</p>
-                            <p className="text-sm font-medium text-yellow-700 mt-0.5">이곳에서의 변경사항(업로드/삭제 등)은 실제 회원사 데이터베이스에 영향을 주지 않습니다.</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200">
-                        <CompanyMsdsView companyData={testCompany} handleUpdateCompany={setTestCompany} showToast={showToast} />
-                    </div>
-                </div>
-            );
-        };
-
-        const AdminDashboard = ({ db, handleUpdateDb, handleLogout, showToast, accessLogs, setAccessLogs }) => {
-            const [adminMenu, setAdminMenu] = useState('DASHBOARD');
-            return (
-                <div className="flex h-screen bg-gray-50 w-full animate-in fade-in">
-                    <div className="w-72 bg-white border-r border-gray-200 text-gray-700 flex flex-col shadow-sm z-20 relative">
-                        <div className="p-6 border-b border-gray-200 bg-gray-50">
-                            <div className="flex items-center gap-3 text-[#0b2b5e] mb-1">
-                                <Server size={28} />
-                                <h1 className="font-extrabold text-xl tracking-tight">Admin Console</h1>
-                            </div>
-                        </div>
-                        <nav className="p-4 space-y-2 flex-1">
-                            <button onClick={() => setAdminMenu('DASHBOARD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'DASHBOARD' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><Database size={18} /> 통합 대시보드</button>
-                            <button onClick={() => setAdminMenu('REGISTER')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'REGISTER' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><UserPlus size={18} /> 신규 회원사 등록</button>
-                            <button onClick={() => setAdminMenu('UPLOAD')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'UPLOAD' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><UploadCloud size={18} /> 전용 폴더 및 파일 배포</button>
-                            <button onClick={() => setAdminMenu('MANAGE')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'MANAGE' ? 'bg-[#0b2b5e] text-white' : 'text-gray-600 hover:bg-gray-100'}`}><Users size={18} /> 회원사 접속 현황 관리</button>
-                            
-                            <div className="my-4 border-t border-gray-100"></div>
-                            
-                            <button onClick={() => setAdminMenu('MSDS_TEST')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${adminMenu === 'MSDS_TEST' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-100'}`}><QrCode size={18} /> MSDS 현장 공유 (테스트)</button>
-                        </nav>
-                        <div className="p-5 border-t border-gray-200 bg-gray-50">
-                            <button onClick={handleLogout} className="flex items-center justify-center gap-2 w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-colors"><LogOut size={16} /> 로그아웃</button>
-                        </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-10 relative">
-                        <div className="max-w-6xl mx-auto">
-                            {adminMenu === 'DASHBOARD' && <AdminDashboardView companyList={Object.values(db)} />}
-                            {adminMenu === 'REGISTER' && <AdminRegisterView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
-                            {adminMenu === 'UPLOAD' && <AdminUploadView db={db} handleUpdateDb={handleUpdateDb} showToast={showToast} />}
-                            {adminMenu === 'MANAGE' && <AdminManageView accessLogs={accessLogs} setAccessLogs={setAccessLogs} showToast={showToast} />}
-                            {adminMenu === 'MSDS_TEST' && <AdminMsdsTestView showToast={showToast} />}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const CompanyHome = ({ companyData, setActiveFolderId }) => (
-            <div className="animate-in fade-in duration-500">
-                <div className="mb-12">
-                    <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
-                        <Lock className="text-[#0b2b5e]"/> 회원사 전용 산업보건 데이터 센터
-                    </h2>
-                    <p className="text-gray-500 mt-2 text-base font-medium">귀사만의 독립된 보안 공간입니다. 회원사 안전보건관계자 외 접근을 엄격히 금지합니다.</p>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2 border-b-2 border-blue-100 pb-3">
-                    <Folder size={24} className="text-[#0b2b5e]" /> [{companyData.name}] 안전보건폴더
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {companyData.folders.map(folder => (
-                        <div key={folder.id} onClick={() => setActiveFolderId(folder.id)} className="bg-white border border-gray-200 p-6 rounded-2xl hover:border-[#0b2b5e] hover:shadow-lg transition-all cursor-pointer group">
-                            <div className={`w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform ${folder.color}`}><folder.icon size={24} /></div>
-                            <h4 className="font-bold text-gray-900 mb-1 text-lg">{folder.name}</h4>
-                            <p className="text-sm text-gray-500 font-medium">관리자 배포 문서함</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-
-        const CompanyFolderView = ({ companyData, activeFolderId, setActiveFolderId, showToast }) => {
-            const activeFolder = companyData.folders.find(f => f.id === activeFolderId);
-            const files = companyData.files[activeFolderId] || [];
-
-            const handleDownload = (file) => {
-                const text = `가상의 보안 다운로드 문서입니다.\n\n파일명: ${file.name}\n등록자: ${file.author}`;
-                const blob = new Blob([text], { type: 'text/plain' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = file.name.replace('.pdf', '.txt');
-                document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
-                showToast(`[${file.name}] 다운로드 시작`);
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (pwd === "wjdwodyd21") {
+                    onSuccess();
+                } else {
+                    setErr("비밀번호가 일치하지 않습니다.");
+                }
             };
 
             return (
-                <div className="animate-in slide-in-from-right-8 duration-300">
-                    <button onClick={() => setActiveFolderId(null)} className="mb-6 flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-gray-900"><ArrowLeft size={18} /> 전체 목록으로 돌아가기</button>
-                    <div className="mb-8 pb-6 border-b-2 border-gray-100">
-                        <h2 className="text-3xl font-extrabold text-gray-900 flex items-center gap-4"><div className={`p-3 rounded-2xl bg-gray-50 border shadow-sm ${activeFolder.color}`}><activeFolder.icon size={32} /></div>{activeFolder.name}</h2>
-                    </div>
-                    {files.length > 0 ? (
-                        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                            <table className="w-full text-left">
-                                <thead><tr className="bg-gray-50 border-b text-sm text-gray-500 font-bold"><th className="py-4 px-6">보안 파일명</th><th className="py-4 px-6">업로드 일자</th><th className="py-4 px-6 text-right">기능</th></tr></thead>
-                                <tbody>
-                                    {files.map((file) => (
-                                        <tr key={file.id} className="border-b hover:bg-blue-50/30">
-                                            <td className="py-4 px-6 font-bold text-gray-900 flex items-center gap-3"><FileText size={20} className="text-[#0b2b5e]" /> {file.name}</td>
-                                            <td className="py-4 px-6 text-sm text-gray-600">{file.date}</td>
-                                            <td className="py-4 px-6 text-right"><button onClick={() => handleDownload(file)} className="text-[#0b2b5e] bg-blue-50 hover:bg-[#0b2b5e] hover:text-white px-4 py-2 rounded-lg text-sm font-bold inline-flex items-center gap-2"><Download size={16}/> 다운로드</button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                <div className="flex flex-col items-center justify-center h-[60vh] animate-in fade-in">
+                    <div className="bg-white p-10 rounded-3xl border border-gray-200 shadow-xl max-w-sm w-full text-center">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
+                            <Lock size={32} className="text-[#0b2b5e]" />
                         </div>
-                    ) : (<div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl p-16 flex flex-col items-center justify-center text-center"><Folder size={64} className="text-gray-300 mb-4" /><h3 className="text-xl font-extrabold text-gray-800">보관된 자료가 없습니다</h3></div>)}
+                        <h3 className="text-2xl font-extrabold text-gray-900 mb-2">보안 메뉴</h3>
+                        <p className="text-gray-500 text-sm mb-8">현장 공유 시스템(MSDS)에 접근하려면<br/>관리자 비밀번호를 입력해주세요.</p>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input 
+                                type="password" 
+                                value={pwd} 
+                                onChange={e=>setPwd(e.target.value)} 
+                                placeholder="비밀번호 입력" 
+                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#0b2b5e] text-center tracking-widest font-bold" 
+                                autoFocus 
+                            />
+                            {err && <p className="text-red-500 text-sm font-bold animate-in shake">{err}</p>}
+                            <button type="submit" className="w-full bg-[#0b2b5e] text-white font-bold py-3.5 rounded-xl transition-colors hover:bg-blue-900 shadow-md">
+                                인증 및 접속
+                            </button>
+                        </form>
+                    </div>
                 </div>
             );
         };
 
-        const CompanyDashboard = ({ currentUser, handleLogout, showToast }) => {
+        const CompanyDashboard = ({ currentUser, handleLogout, showToast, handleUpdateCompany }) => {
             const [activeFolderId, setActiveFolderId] = useState(null);
+            const [isMsdsUnlocked, setIsMsdsUnlocked] = useState(false);
             
             return (
                 <div className="flex h-screen bg-gray-50 w-full animate-in fade-in duration-500">
-                    {/* White Sidebar */}
                     <aside className="w-72 bg-white border-r border-gray-200 text-gray-700 flex flex-col shadow-sm z-20 shrink-0">
                         <div className="h-20 flex items-center px-6 border-b border-gray-200 bg-white">
                             <ShieldCheck size={28} className="text-[#0b2b5e] mr-3 shrink-0" />
@@ -927,9 +984,10 @@
                             </nav>
                             <p className="text-xs font-bold text-gray-400 mb-3 px-2 tracking-wider">현장 공유 시스템</p>
                             <nav className="space-y-1">
-                                <button onClick={() => showToast('테스트 중인 메뉴입니다. 추후 오픈 예정입니다.')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all text-gray-400 hover:bg-gray-50 cursor-not-allowed`}>
-                                    <Lock size={18} className="shrink-0" /> 
-                                    <span className="truncate text-left leading-tight">MSDS보관함(QR공유)<br/><span className="text-[10px] text-red-400 font-bold">테스트중</span></span>
+                                <button onClick={() => setActiveFolderId('msds_public_qr')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all ${activeFolderId === 'msds_public_qr' ? 'bg-blue-50 text-[#0b2b5e]' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                    <QrCode size={18} className="shrink-0" /> 
+                                    <span className="truncate text-left leading-tight flex-1">MSDS보관함(QR공유)</span>
+                                    {!isMsdsUnlocked && <Lock size={14} className="text-gray-400 shrink-0" />}
                                 </button>
                             </nav>
                         </div>
@@ -947,13 +1005,21 @@
                         <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 z-10 shadow-sm">
                             <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
                                 {!activeFolderId && <><Home size={22} className="text-gray-400"/> 산업보건 데이터 센터 홈</>}
-                                {activeFolderId && <><Folder size={22} className="text-[#0b2b5e]"/> {currentUser.folders.find(f => f.id === activeFolderId)?.name}</>}
+                                {activeFolderId && activeFolderId !== 'msds_public_qr' && <><Folder size={22} className="text-[#0b2b5e]"/> {currentUser.folders.find(f => f.id === activeFolderId)?.name}</>}
+                                {activeFolderId === 'msds_public_qr' && <><QrCode size={22} className="text-green-600"/> MSDS 현장 공유 (QR)</>}
                             </h2>
                         </header>
                         <main className="flex-1 overflow-y-auto p-10 relative">
                             <div className="max-w-6xl mx-auto">
                                 {!activeFolderId && <CompanyHome companyData={currentUser} setActiveFolderId={setActiveFolderId} />}
-                                {activeFolderId && <CompanyFolderView companyData={currentUser} activeFolderId={activeFolderId} setActiveFolderId={setActiveFolderId} showToast={showToast} />}
+                                {activeFolderId && activeFolderId !== 'msds_public_qr' && <CompanyFolderView companyData={currentUser} activeFolderId={activeFolderId} setActiveFolderId={setActiveFolderId} showToast={showToast} />}
+                                {activeFolderId === 'msds_public_qr' && (
+                                    isMsdsUnlocked ? (
+                                        <CompanyMsdsView companyData={currentUser} handleUpdateCompany={handleUpdateCompany} showToast={showToast} />
+                                    ) : (
+                                        <MsdsPasswordView onSuccess={() => setIsMsdsUnlocked(true)} />
+                                    )
+                                )}
                             </div>
                         </main>
                     </div>
@@ -966,11 +1032,25 @@
             const [currentUser, setCurrentUser] = useState(null); 
             const [db, setDb] = useState(generateEnterpriseDatabase(1)); 
             const [toastMessage, setToastMessage] = useState("");
-            const [accessLogs, setAccessLogs] = useState([]); // 접속 로그 상태 추가
+            const [accessLogs, setAccessLogs] = useState([]);
             
+            // 모바일 퍼블릭 뷰 (QR 연결) 라우팅
+            const urlParams = new URLSearchParams(window.location.search);
+            const publicMsdsId = urlParams.get('public_msds');
+
+            if (publicMsdsId) {
+                const company = db[publicMsdsId];
+                if (!company) return <div className="p-10 text-center text-xl font-bold text-gray-500">존재하지 않는 회원사입니다.</div>;
+                return <PublicMsdsView companyData={company} />;
+            }
+
             const showToast = (msg) => { setToastMessage(msg); setTimeout(() => setToastMessage(""), 3000); };
             const handleLogout = () => { setCurrentUser(null); setAppState('LOGIN'); showToast("안전하게 로그아웃 되었습니다."); };
             const handleUpdateDb = (newDb) => { setDb(newDb); };
+            const handleUpdateCompany = (updatedCompany) => {
+                setDb(prev => ({ ...prev, [updatedCompany.id]: updatedCompany }));
+                setCurrentUser(updatedCompany);
+            };
 
             return (
                 <div className="h-screen w-full font-sans overflow-hidden bg-gray-100">
@@ -982,7 +1062,7 @@
                     )}
                     {appState === 'LOGIN' && <LoginScreen db={db} setCurrentUser={setCurrentUser} setAppState={setAppState} showToast={showToast} setAccessLogs={setAccessLogs} />}
                     {appState === 'ADMIN' && <AdminDashboard db={db} handleUpdateDb={handleUpdateDb} handleLogout={handleLogout} showToast={showToast} accessLogs={accessLogs} setAccessLogs={setAccessLogs} />}
-                    {appState === 'COMPANY' && <CompanyDashboard currentUser={currentUser} handleLogout={handleLogout} showToast={showToast} />}
+                    {appState === 'COMPANY' && <CompanyDashboard currentUser={currentUser} handleLogout={handleLogout} showToast={showToast} handleUpdateCompany={handleUpdateCompany} />}
                 </div>
             );
         };
